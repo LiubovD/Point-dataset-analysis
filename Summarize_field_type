@@ -1,0 +1,32 @@
+import geopandas as gpd
+import os
+
+# Set the folder path
+folder = r'C:\Users\l.dumarevskaya.ctr\ArcGIS projects\overdose'
+
+# Load the data
+gdf = gpd.read_file(os.path.join(folder, 'fatal.shp'))
+
+# Add a new field 'type' if it doesn't exist
+if 'type' not in gdf.columns:
+    gdf['type'] = None
+
+# Iterate through each row and populate the 'type' field
+for index, row in gdf.iterrows():
+    substances = []
+    if row['opioid'] == "1":
+        substances.append('opioid')
+    if row['fentanyl'] == "1":
+        substances.append('fentanyl')
+    if row['cocaine'] == "1":
+        substances.append('cocaine')
+    if row['alc'] == "1":
+        substances.append('alc')
+
+    # Join the substances into a comma-separated string
+    gdf.at[index, 'type'] = ', '.join(substances) if substances else 'none'
+
+# Save the updated GeoDataFrame
+output_path = os.path.join(folder, 'fatal_overdose_updated.shp')
+gdf.to_file(output_path)
+print(f"Updated file saved as '{output_path}'")
