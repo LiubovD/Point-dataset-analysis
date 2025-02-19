@@ -1,0 +1,38 @@
+import geopandas as gpd
+import os
+import arcpy
+
+# Set the folder path
+folder = r'C:\Users\l.dumarevskaya.ctr\ArcGIS projects\overdose'
+
+# Load the data
+fatal = gpd.read_file(os.path.join(folder, 'fatal_with_hexbins.shp'))
+nonfatal = gpd.read_file(os.path.join(folder, 'nonfatal_with_hexbins.shp'))
+
+hexbin = gpd.read_file(os.path.join(folder, 'hexbin.shp'))
+# Field names
+grid_id_field = "grid_id"  # Field name for grid ID in both feature classes
+fatal_counts_field = "fatal_counts"  # New field for fatal counts
+nonfatal_counts_field = "nonfatal_counts"  # New field for non-fatal counts
+
+# Step 1: Count occurrences of each grid_id in the fatal dataset
+fatal_counts = fatal[grid_id_field].value_counts().reset_index()
+fatal_counts.columns = [grid_id_field, fatal_counts_field]  # Rename columns
+
+# Step 2: Count occurrences of each grid_id in the non-fatal dataset
+nonfatal_counts = nonfatal[grid_id_field].value_counts().reset_index()
+nonfatal_counts.columns = [grid_id_field, nonfatal_counts_field]  # Rename columns
+
+# Step 3: Merge the counts into the hexbin dataset
+hexbin = hexbin.merge(fatal_counts, on=grid_id_field, how='left')
+hexbin = hexbin.merge(nonfatal_counts, on=grid_id_field, how='left')
+
+# Fill NaN values with 0 (for grid_ids in hexbin that don't exist in fatal or non-fatal)
+hexbin[fatal_counts_field] = hexbin[fatal_counts_field].fillna(0).astype(int)
+hexbin[nonfatal_counts_field] = hexbin[nonfatal_counts_field].fillna(0).astype(int)
+
+# Step 4: Save the updated hexbin dataset to a new shapefile
+output_path = os.path.join(folder, 'hexbin_with_counts.shp')
+hexbin.to_file(output_path)
+
+print("Process completed successfully! Updated hexbin saved to:", output_path)
