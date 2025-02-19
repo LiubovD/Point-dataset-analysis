@@ -1,0 +1,62 @@
+import geopandas as gpd
+import os
+import arcpy
+arcpy.env.overwriteOutput = True
+
+folder = 'insert here your folder address'
+
+
+# Load the overdose shapefile
+fatal = gpd.read_file(os.path.join(folder,'fatal.shp'))
+nonfatal = gpd.read_file(os.path.join(folder, 'nonfatal.shp'))
+
+# Load the hexbins shapefile
+hexbin = gpd.read_file(os.path.join(folder,'hexbin.shp'))
+
+# List of GeoDataFrames to process
+files = [hexbin, fatal, nonfatal]
+file_names = ['hexbin', 'fatal', 'nonfatal']
+
+# Convert each file to EPSG:4269 if necessary
+for i, gdf in enumerate(files):
+    if gdf.crs != "EPSG:4269":
+        print(f"Converting {file_names[i]} to EPSG:4269...")
+        files[i] = gdf.to_crs("EPSG:4269")
+
+# Update the original variables (optional)
+hexbin, fatal, nonfatal = files
+
+# Print the CRS of each file to verify
+print("CRS after conversion:")
+print(f"hexbin: {hexbin.crs}")
+print(f"fatal: {fatal.crs}")
+print(f"nonfatal: {nonfatal.crs}")
+
+
+# List of point GeoDataFrames to process
+point_datasets = [fatal, nonfatal]
+dataset_names = ['fatal', 'nonfatal']
+
+# Perform spatial join for each point dataset
+for i, points in enumerate(point_datasets):
+    print(f"Processing {dataset_names[i]} points...")
+
+    # Perform spatial join with hexbins
+    joined = gpd.sjoin(points, hexbin, how='inner', predicate='within')
+
+    # Debug: Print column names to verify
+    print(f"Columns after spatial join ({dataset_names[i]}): {joined.columns}")
+
+    # Rename the 'index_right' column to avoid conflicts
+    if 'index_right' in joined.columns:
+        joined = joined.rename(columns={'index_right': f'hexbin_index_{dataset_names[i]}'})
+    else:
+        print(f"Warning: 'index_right' column not found in {dataset_names[i]} dataset. Skipping renaming.")
+
+    # Truncate column names to 10 characters (Shapefile limitation)
+    joined.columns = [col[:10] for col in joined.columns]
+
+    # Save the result to the specified output folder
+    output_file = os.path.join(folder, f"{dataset_names[i]}_with_hexbins.shp")
+    joined.to_file(output_file)
+    print(f"Saved {output_file}")
